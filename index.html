@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Verificador de Apuntes</title>
+  <style>
+    body {
+      font-family: 'Roboto', Arial, sans-serif;
+      background-color: #F4F4F4;
+      margin: 0;
+      padding: 0;
+      color: #333;
+      line-height: 1.6;
+    }
+    .header {
+      background: #3949AB;
+      color: white;
+      text-align: center;
+      padding: 20px;
+    }
+    .header h1 {
+      margin: 0;
+    }
+    .subtitulo {
+      text-align: center;
+      font-size: 18px;
+      margin: 20px;
+      color: #555;
+    }
+    .buttons {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .buttons button {
+      padding: 10px 20px;
+      margin: 0 10px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      background-color: #3949AB;
+      color: white;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .buttons button:hover {
+      background-color: #1E88E5;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto 40px;
+      padding: 20px;
+      background: white;
+      box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+    }
+    .grupo-bloque {
+      margin-bottom: 40px;
+    }
+    .grupo-titulo {
+      background-color: #3949AB;
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #CCC;
+      padding: 10px;
+      text-align: left;
+    }
+    th {
+      background: #E8EAF6;
+    }
+    tr:nth-child(even) {
+      background: #F9F9F9;
+    }
+    tr:hover {
+      background: #DCE775;
+    }
+    .footer {
+      text-align: center;
+      font-size: 14px;
+      color: #777;
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>📋 Verificación de Apuntes</h1>
+  </div>
+
+  <div class="subtitulo" id="subtitulo">Cargando subtítulo...</div>
+
+  <!-- Botones de agrupación -->
+  <div class="buttons">
+    <button onclick="cambiarAgrupacion('estudiante')">👤 Por Estudiante</button>
+    <button onclick="cambiarAgrupacion('fecha')">📅 Por Fecha</button>
+    <button onclick="cambiarAgrupacion('servicio')">🧰 Por Servicio</button>
+  </div>
+
+  <div class="container" id="content">
+    Cargando datos...
+  </div>
+
+  <div class="footer">
+    © Verificador de Apuntes 2025. Todos los derechos reservados.
+  </div>
+
+  <script>
+    const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRua2DhnzWZqJ1_uYBx3AMg8WKZIN9i7xpo4dNSOVY31yz3a3GLCiBIwQH6FCseLmuCriTij9MEznVC/pub?gid=689423102&single=true&output=tsv";
+
+    let encabezados = [];
+    let datos = [];
+    let subtitulo = '';
+    let tipoAgrupacion = 'estudiante'; // Default
+
+    async function cargarDatos() {
+      try {
+        const response = await fetch(sheetURL);
+        const tsv = await response.text();
+        const filas = tsv.trim().split("\n").map(row => row.split("\t"));
+
+        subtitulo = filas[0][1] || "Sin subtítulo";
+        encabezados = filas[2];
+        datos = filas.slice(3);
+
+        document.getElementById("subtitulo").textContent = subtitulo;
+
+        renderizarAgrupados();
+      } catch (error) {
+        document.getElementById("content").innerHTML = "❌ Error al cargar los datos.";
+        console.error("Error:", error);
+      }
+    }
+
+    function cambiarAgrupacion(tipo) {
+      tipoAgrupacion = tipo;
+      renderizarAgrupados();
+    }
+
+    function renderizarAgrupados() {
+      const contenedor = document.getElementById("content");
+      contenedor.innerHTML = "";
+
+      const index = {
+        estudiante: 0,
+        fecha: 1,
+        servicio: 2
+      }[tipoAgrupacion];
+
+      const agrupados = {};
+
+      datos.forEach(fila => {
+        const clave = fila[index]?.trim() || "Sin dato";
+        const resto = fila.slice(0, index).concat(fila.slice(index + 1));
+        if (!agrupados[clave]) {
+          agrupados[clave] = [];
+        }
+        agrupados[clave].push(resto);
+      });
+
+      const clavesOrdenadas = Object.keys(agrupados).sort((a, b) => {
+        // Si es fecha, intenta ordenar por valor real
+        if (tipoAgrupacion === 'fecha') {
+          const da = new Date(a);
+          const db = new Date(b);
+          return isNaN(da) || isNaN(db) ? a.localeCompare(b) : da - db;
+        }
+        return a.localeCompare(b);
+      });
+
+      clavesOrdenadas.forEach(clave => {
+        const bloque = document.createElement("div");
+        bloque.className = "grupo-bloque";
+
+        const titulo = document.createElement("div");
+        titulo.className = "grupo-titulo";
+        titulo.textContent = `🔹 ${clave}`;
+        bloque.appendChild(titulo);
+
+        const tabla = document.createElement("table");
+        const headersFiltrados = encabezados.filter((_, i) => i !== index);
+
+        tabla.innerHTML = `
+          <thead>
+            <tr>${headersFiltrados.map(h => `<th>${h}</th>`).join("")}</tr>
+          </thead>
+          <tbody>
+            ${agrupados[clave].map(fila =>
+              `<tr>${fila.map(dato => `<td>${dato}</td>`).join("")}</tr>`
+            ).join("")}
+          </tbody>
+        `;
+        bloque.appendChild(tabla);
+        contenedor.appendChild(bloque);
+      });
+    }
+
+    window.onload = cargarDatos;
+  </script>
+</body>
+</html>
